@@ -1,8 +1,8 @@
 <?php
-$db_hostname = "localhost";
+$db_hostname = "db.fr-roub1.bengt.wasmernet.com";
 $db_database = "phpuas"; // Ganti dengan nama database Anda
-$db_username = "root";         // Ganti dengan username MySQL Anda
-$db_password = "";             // Ganti dengan password MySQL Anda
+$db_username = "user_cb5cedda";         // Ganti dengan username MySQL Anda
+$db_password = "pw_6WalbxgK4UkR304bME8gYxR060b76g04";             // Ganti dengan password MySQL Anda
 $db_charset = "utf8mb4";
 
 $dsn = "mysql:host=$db_hostname;dbname=$db_database;charset=$db_charset";
