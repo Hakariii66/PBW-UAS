@@ -103,6 +103,27 @@ function format_tanggal_indonesia($date_str) {
         body{
             font-family: Arial, Helvetica, sans-serif;
         }
+
+        /* Kelas pendukung Search Bar Publikasi yang belum tersedia di output.css */
+        .max-w-xl { max-width: 36rem; }
+        .right-0 { right: 0; }
+        .pr-10 { padding-right: 2.5rem; }
+        .py-2\.5 { padding-top: 0.625rem; padding-bottom: 0.625rem; }
+        .max-h-64 { max-height: 16rem; }
+        .z-20 { z-index: 20; }
+        .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .border-gray-100 { border-color: #f3f4f6; }
+        .hover\:bg-blue-50:hover { background-color: #eff6ff; }
+        .last\:border-b-0:last-child { border-bottom-width: 0; }
+
+        /* Fokus pada input pencarian */
+        #searchJudul:focus {
+            outline: none;
+            border-color: #002b6a;
+            box-shadow: 0 0 0 3px rgba(0, 43, 106, 0.2);
+        }
+        /* Tombol bersihkan pencarian */
+        #searchClear:hover { color: #4b5563; }
     </style>
 </head>
 <body class="min-h-screen flex flex-col justify-between bg-[#f8fafc] text-gray-800">
@@ -113,6 +134,23 @@ function format_tanggal_indonesia($date_str) {
     <h1 class="text-xl sm:text-2xl font-bold text-[#002b6a] text-center mb-6">
         Daftar Publikasi BPS Provinsi Papua
     </h1>
+
+    <!-- Search Bar dengan Suggestion Box (di bawah judul halaman, di atas tabel) -->
+    <div class="relative max-w-xl mx-auto mb-5">
+        <div class="relative">
+            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+                <i class="fa-solid fa-magnifying-glass"></i>
+            </span>
+            <input type="text" id="searchJudul" autocomplete="off"
+                   placeholder="Cari judul publikasi..."
+                   class="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg text-sm bg-white shadow-sm">
+            <button type="button" id="searchClear" class="hidden absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 cursor-pointer">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+        <!-- Suggestion Box -->
+        <ul id="suggestionBox" class="hidden absolute z-20 left-0 right-0 mt-1 max-h-64 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg text-sm"></ul>
+    </div>
 
     <!-- Notifikasi Flash Message -->
     <?php if ($flash_success): ?>
@@ -160,7 +198,7 @@ function format_tanggal_indonesia($date_str) {
                     </tr>
                 <?php else: ?>
                     <?php foreach ($publikasi_list as $index => $row): ?>
-                        <tr class="<?= ($index % 2 === 1) ? 'bg-[#f4f7fb]' : 'bg-white' ?> hover:bg-blue-50/60 transition-colors">
+                        <tr data-judul="<?= htmlspecialchars($row['judul_publikasi']) ?>" class="<?= ($index % 2 === 1) ? 'bg-[#f4f7fb]' : 'bg-white' ?> hover:bg-blue-50/60 transition-colors">
                             <!-- Kolom 1: No -->
                             <td class="py-4 px-3 text-center align-top border border-gray-200 font-medium text-gray-800">
                                 <?= $index + 1 ?>
@@ -225,6 +263,12 @@ function format_tanggal_indonesia($date_str) {
                         </tr>
                     <?php endforeach; ?>
                 <?php endif; ?>
+                <!-- Baris kosong ketika hasil pencarian tidak ada -->
+                <tr id="noResultRow" class="hidden">
+                    <td colspan="7" class="py-12 text-center text-gray-500 font-medium">
+                        Tidak ada publikasi yang cocok dengan pencarian.
+                    </td>
+                </tr>
             </tbody>
         </table>
     </div>
@@ -345,6 +389,108 @@ window.addEventListener('click', function(e) {
         closeEditModal();
     }
 });
+</script>
+
+<script>
+// Fitur Search Bar + Suggestion Box untuk filter tabel berdasarkan Judul Publikasi
+(function () {
+    const input    = document.getElementById('searchJudul');
+    const clearBtn = document.getElementById('searchClear');
+    const box      = document.getElementById('suggestionBox');
+    const tbody    = document.querySelector('tbody');
+    const rows     = Array.from(tbody.querySelectorAll('tr[data-judul]'));
+    const noResult = document.getElementById('noResultRow');
+    const titles   = rows.map(r => r.dataset.judul).filter(Boolean);
+    let activeIndex = -1;
+
+    function filterTable(query) {
+        const q = query.trim().toLowerCase();
+        let visible = 0;
+        rows.forEach(row => {
+            const match = q === '' || (row.dataset.judul || '').toLowerCase().includes(q);
+            row.classList.toggle('hidden', !match);
+            if (match) visible++;
+        });
+        if (noResult) noResult.classList.toggle('hidden', !(q !== '' && visible === 0));
+    }
+
+    function renderSuggestions(query) {
+        const q = query.trim().toLowerCase();
+        box.innerHTML = '';
+        activeIndex = -1;
+        if (q === '') { box.classList.add('hidden'); return; }
+        const matches = titles.filter(t => t.toLowerCase().includes(q)).slice(0, 8);
+        if (!matches.length) { box.classList.add('hidden'); return; }
+        matches.forEach(title => {
+            const li = document.createElement('li');
+            li.textContent = title;
+            li.className = 'px-3 py-2 cursor-pointer hover:bg-blue-50 border-b border-gray-100 last:border-b-0 truncate';
+            li.addEventListener('mousedown', e => { e.preventDefault(); selectSuggestion(title); });
+            box.appendChild(li);
+        });
+        box.classList.remove('hidden');
+    }
+
+    function selectSuggestion(title) {
+        input.value = title;
+        filterTable(title);
+        box.classList.add('hidden');
+        toggleClear();
+        input.focus();
+    }
+
+    function toggleClear() {
+        clearBtn.classList.toggle('hidden', input.value.trim() === '');
+    }
+
+    function highlight(items) {
+        items.forEach((it, i) => it.classList.toggle('bg-blue-50', i === activeIndex));
+    }
+
+    input.addEventListener('input', function () {
+        filterTable(this.value);
+        renderSuggestions(this.value);
+        toggleClear();
+    });
+
+    input.addEventListener('focus', function () {
+        if (this.value.trim() !== '') renderSuggestions(this.value);
+    });
+
+    input.addEventListener('keydown', function (e) {
+        const items = Array.from(box.querySelectorAll('li'));
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            if (!items.length) return;
+            activeIndex = (activeIndex + 1) % items.length;
+            highlight(items);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (!items.length) return;
+            activeIndex = (activeIndex - 1 + items.length) % items.length;
+            highlight(items);
+        } else if (e.key === 'Enter') {
+            if (activeIndex >= 0 && items[activeIndex]) {
+                e.preventDefault();
+                selectSuggestion(items[activeIndex].textContent);
+            }
+        } else if (e.key === 'Escape') {
+            box.classList.add('hidden');
+        }
+    });
+
+    clearBtn.addEventListener('click', function () {
+        input.value = '';
+        filterTable('');
+        renderSuggestions('');
+        toggleClear();
+        input.focus();
+    });
+
+    document.addEventListener('click', function (e) {
+        if (!box.contains(e.target) && e.target !== input) box.classList.add('hidden');
+    });
+})();
 </script>
 
 <?php require_once __DIR__ . '/components/footer.php'; ?>
